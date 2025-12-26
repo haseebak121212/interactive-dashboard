@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive Dashboard with Brushing & Linking</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #controls { margin-bottom: 20px; }
+    .chart { width: 48%; display: inline-block; vertical-align: top; }
+  </style>
+</head>
+<body>
+
+<h1>Interactive Dashboard - Brushing & Linking Example</h1>
+
+<div id="controls">
+  <label for="categorySelect">Select Category: </label>
+  <select id="categorySelect"></select>
+</div>
+
+<div class="chart" id="barChart"></div>
+<div class="chart" id="scatterChart"></div>
+<div class="chart" id="lineChart"></div>
+<div class="chart" id="heatmapChart"></div>
+
+<script>
+  // ----------------------------
+  // Example dataset
+  // ----------------------------
+  const data = [
+    {Category:'A', Subcategory:'X', Value:10, Feature1:5, Feature2:7, Date:'2025-01-01'},
+    {Category:'A', Subcategory:'Y', Value:15, Feature1:6, Feature2:8, Date:'2025-01-02'},
+    {Category:'B', Subcategory:'X', Value:8, Feature1:4, Feature2:6, Date:'2025-01-01'},
+    {Category:'B', Subcategory:'Z', Value:20, Feature1:7, Feature2:5, Date:'2025-01-02'},
+    {Category:'A', Subcategory:'X', Value:12, Feature1:5.5, Feature2:7.5, Date:'2025-01-03'},
+    {Category:'B', Subcategory:'Z', Value:18, Feature1:7.2, Feature2:5.3, Date:'2025-01-03'}
+  ];
+
+  // ----------------------------
+  // Populate category dropdown
+  // ----------------------------
+  const categories = [...new Set(data.map(d => d.Category))];
+  const select = document.getElementById('categorySelect');
+  categories.forEach(cat => {
+    const option = document.createElement('option');
+    option.value = cat;
+    option.text = cat;
+    select.appendChild(option);
+  });
+
+  let selectedSubcategory = null; // For brushing & linking
+
+  function filterData(category) {
+    return data.filter(d => d.Category === category);
+  }
+
+  function drawCharts() {
+    const category = select.value;
+    const filtered = filterData(category);
+
+    // ----------------------------
+    // 1. Bar Chart: Value per Subcategory
+    // ----------------------------
+    const subcategories = [...new Set(filtered.map(d => d.Subcategory))];
+    const values = subcategories.map(s => filtered.filter(f => f.Subcategory===s).reduce((sum,f)=>sum+f.Value,0));
+
+    const barData = [{
+      x: subcategories,
+      y: values,
+      type: 'bar',
+      marker: {color: subcategories.map(s => (s === selectedSubcategory ? 'red' : 'orange'))}
+    }];
+    const barLayout = {title:'Values by Subcategory'};
+    Plotly.newPlot('barChart', barData, barLayout);
+
+    // Click handler for brushing & linking
+    var barChartDiv = document.getElementById('barChart');
+    barChartDiv.on('plotly_click', function(dataClick){
+      selectedSubcategory = dataClick.points[0].x;
+      drawCharts(); // redraw charts to update highlight
+    });
+
+    // ----------------------------
+    // 2. Scatter Plot: Feature1 vs Feature2
+    // ----------------------------
+    const scatterData = [{
+      x: filtered.map(d => d.Feature1),
+      y: filtered.map(d => d.Feature2),
+      text: filtered.map(d => `Subcategory: ${d.Subcategory}<br>Value: ${d.Value}`),
+      mode: 'markers',
+      type: 'scatter',
+      marker: {
+        size: filtered.map(d=>d.Value*2),
+        color: filtered.map(d => (d.Subcategory===selectedSubcategory ? 'red' : 'green')),
+        opacity: filtered.map(d => (selectedSubcategory && d.Subcategory!==selectedSubcategory ? 0.3 : 1))
+      }
+    }];
+    const scatterLayout = {title:'Feature1 vs Feature2', hovermode:'closest'};
+    Plotly.newPlot('scatterChart', scatterData, scatterLayout);
+
+    // ----------------------------
+    // 3. Line Chart: Value over Date
+    // ----------------------------
+    const lineData = [];
+    subcategories.forEach(s => {
+      const subData = filtered.filter(d => d.Subcategory===s).sort((a,b)=> new Date(a.Date)-new Date(b.Date));
+      lineData.push({
+        x: subData.map(d=>d.Date),
+        y: subData.map(d=>d.Value),
+        mode:'lines+markers',
+        name: s,
+        line: {color: s===selectedSubcategory ? 'red' : 'blue'}
+      });
+    });
+    const lineLayout = {title:'Value Trend over Time'};
+    Plotly.newPlot('lineChart', lineData, lineLayout);
+
+    // ----------------------------
+    // 4. Heatmap: Feature1 vs Feature2 density
+    // ----------------------------
+    const heatmapData = [{
+      x: filtered.map(d=>d.Feature1),
+      y: filtered.map(d=>d.Feature2),
+      type:'histogram2d',
+      colorscale: 'Viridis'
+    }];
+    const heatmapLayout = {title:'Feature1 vs Feature2 Density'};
+    Plotly.newPlot('heatmapChart', heatmapData, heatmapLayout);
+  }
+
+  select.addEventListener('change', () => {
+    selectedSubcategory = null; // reset brushing when category changes
+    drawCharts();
+  });
+
+  select.value = categories[0]; // default
+  drawCharts();
+
+</script>
+
+</body>
+</html>
